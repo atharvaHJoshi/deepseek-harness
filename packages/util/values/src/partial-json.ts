@@ -43,12 +43,13 @@ type Entry =
   }
   | { readonly kind: 'value'; readonly start: number; end: number; parsed: JsonValue | undefined; invalid: boolean }
 
-type ReadKind = 'closed' | 'keys' | 'has' | 'complete' | 'text' | 'value'
+type ReadKind = 'closed' | 'keys' | 'has' | 'complete' | 'invalid' | 'text' | 'value'
   | `length:${number}:${number}` | `prefix:${number}` | `exceeds:${number}`
 
 /** One answered question, kept to detect whether later text changes the answer. */
 interface Read {
-  readonly completion: boolean
+  /** Whether a content read can discover the error this answer reflects. */
+  readonly contentDependent: boolean
   readonly answer: () => unknown
   last: unknown
 }
@@ -136,8 +137,7 @@ export class PartialArguments {
 
   /** Whether indexing or a content read found invalid JSON; unread value contents are not validated. */
   get invalid(): boolean {
-    this.scan()
-    return this.#mode === 'invalid' || this.#invalidValue
+    return this.remember('invalid', '', () => this.invalidNow())
   }
 
   /**
@@ -178,17 +178,18 @@ export class PartialArguments {
     if (this.#reads.size === 0) return false
     this.scan()
     let changed = false
-    let completions = false
+    let contentDependent = false
     for (const read of this.#reads.values()) {
-      if (read.completion) {
-        completions = true
+      if (read.contentDependent) {
+        contentDependent = true
         continue
       }
       changed = this.refreshRead(read) || changed
     }
-    // Content reads can discover errors that change a field's completion answer.
-    if (completions) {
-      for (const read of this.#reads.values()) if (read.completion) changed = this.refreshRead(read) || changed
+    // Content reads can discover errors that change a field's completion answer
+    // and the view's validity answer.
+    if (contentDependent) {
+      for (const read of this.#reads.values()) if (read.contentDependent) changed = this.refreshRead(read) || changed
     }
     if (this.sealed) this.#reads.clear()
     return changed
@@ -303,7 +304,7 @@ export class PartialArguments {
       const id = `${kind}/${key}`
       if (!this.#reads.has(id)) {
         this.#reads.set(id, {
-          completion: kind === 'complete',
+          contentDependent: kind === 'complete' || kind === 'invalid',
           answer: comparison === undefined ? read : () => comparison(read()),
           last: comparison === undefined ? result : comparison(result),
         })
@@ -314,6 +315,10 @@ export class PartialArguments {
 
   private closedNow(): boolean {
     return this.sealed || this.#mode === 'closed' || this.#mode === 'invalid'
+  }
+
+  private invalidNow(): boolean {
+    return this.#mode === 'invalid' || this.#invalidValue
   }
 
   private keysNow(): readonly string[] {

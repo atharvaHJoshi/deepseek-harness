@@ -801,6 +801,24 @@ describe('PartialArguments', () => {
       expect(view.refresh()).toBe(false)
     })
 
+    it('reports an invalid read when indexing or a content read discovers the error', () => {
+      const structural = new PartialArguments()
+      expect(structural.invalid).toBe(false)
+      expect(appendAndRefresh(structural, '{"a":}')).toBe(true)
+      expect(structural.invalid).toBe(true)
+      expect(appendAndRefresh(structural, ',"b":1}')).toBe(false)
+
+      const content = new PartialArguments()
+      content.append('{"a":"ab')
+      expect(content.text('a')).toBe('ab')
+      expect(content.invalid).toBe(false)
+      content.append(String.raw`\q"}`)
+      expect(content.refresh()).toBe(true)
+      expect(content.invalid).toBe(true)
+      expect(content.text('a')).toBe('ab')
+      expect(content.refresh()).toBe(false)
+    })
+
     it('reports no change while nothing has been read, then answers fully on the first read', () => {
       const view = new PartialArguments()
       expect(appendAndRefresh(view, '{"file_path":"src/a.ts","n":1,')).toBe(false)
@@ -1181,7 +1199,9 @@ describe('PartialArguments', () => {
       else expect(view.text('bad')).toBe(prefix)
       expect(view.invalid).toBe(true)
       expect(view.closed()).toBe(false)
-      expect(view.refresh()).toBe(false)
+      // The validity answer was observed false above, and intervening reads do
+      // not acknowledge pending changes, so the refresh reports it.
+      expect(view.refresh()).toBe(true)
 
       view.append('"later":"ok"')
       expect(view.refresh()).toBe(true)
