@@ -92,7 +92,8 @@ export function expandHomePath(path: string): string {
 
 /**
  * Resolve one user-data root from an explicit path, an environment override, and a default.
- * @param configured - explicit path, which has highest precedence.
+ * @param configured - explicit path, which has highest precedence; an empty or
+ *   whitespace-only value is treated as unset.
  * @param env - environment mapping to read.
  * @param envName - environment variable that overrides the default.
  * @param fallback - default root, used when neither the explicit path nor the environment provides one.
@@ -105,8 +106,9 @@ function resolveRoot(
   fallback: () => string,
 ): string {
   const fromEnv = env[envName]
-  const selected = configured ?? (fromEnv !== undefined && fromEnv.trim().length > 0 ? fromEnv : fallback())
-  return resolve(expandHomePath(selected))
+  const configuredPath = configured !== undefined && configured.trim().length > 0 ? configured : undefined
+  const envPath = fromEnv !== undefined && fromEnv.trim().length > 0 ? fromEnv : undefined
+  return resolve(expandHomePath(configuredPath ?? envPath ?? fallback()))
 }
 
 /**
@@ -126,8 +128,8 @@ function rootDisplay(resolvedRoot: string, defaultRoot: string, defaultLabel: st
  *
  * Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
  * `~/.dsh`. The harness keeps all user data under one root. An empty or
- * whitespace-only `$DSH_HOME` is treated as unset, so a blank override never
- * resolves the home to the current working directory.
+ * whitespace-only explicit path or `$DSH_HOME` is treated as unset, so a blank
+ * override never resolves the home to the current working directory.
  * @param configured - explicit harness-home override, which has highest precedence.
  * @param env - environment mapping used to read `DSH_HOME`.
  * @returns the normalized absolute harness home path.
@@ -142,8 +144,8 @@ export function resolveDshHome(configured?: string, env: Record<string, string |
  * Precedence, highest first: an explicit configured path, `$DSH_AGENTS_HOME`,
  * then `~/.agents`. The root holds configuration shared with other agent tools,
  * so it stays independent of the DeepSeek Harness home. An empty or
- * whitespace-only `$DSH_AGENTS_HOME` is treated as unset, so a blank override
- * never resolves the root to the current working directory.
+ * whitespace-only explicit path or `$DSH_AGENTS_HOME` is treated as unset, so a
+ * blank override never resolves the root to the current working directory.
  * @param configured - explicit shared-root override, which has highest precedence.
  * @param env - environment mapping used to read `DSH_AGENTS_HOME`.
  * @returns the normalized absolute shared agent configuration root.

@@ -51,6 +51,19 @@ describe('dsh path helpers', () => {
     expect(resolveDshHome(undefined, { DSH_HOME: '   ' })).toBe(defaultDshHome())
   })
 
+  it('treats a blank configured path as unset instead of resolving to the working directory', () => {
+    expect(resolveDshHome('', {})).toBe(defaultDshHome())
+    expect(resolveDshHome('   ', {})).toBe(defaultDshHome())
+    expect(resolveAgentsHome('', {})).toBe(defaultAgentsHome())
+    expect(resolveAgentsHome('   ', {})).toBe(defaultAgentsHome())
+    vi.stubEnv('DSH_HOME', '')
+    try {
+      expect(dshCachePath({ dshHome: '' }, 'attachments')).toBe(join(defaultDshHome(), 'cache', 'attachments'))
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('joins child segments onto the resolved DSH_HOME', () => {
     vi.stubEnv('DSH_HOME', '~/env-dsh')
     expect(dshHomePath()).toBe(join(homedir(), 'env-dsh'))
