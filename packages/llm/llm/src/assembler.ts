@@ -69,7 +69,10 @@ export class BlockAssembler {
       case 'tool-call-delta': {
         const partial = this.ensure(chunk.index, 'tool-call')
         if (partial.block) return // closed by block-end; ignore stragglers
-        partial.toolCallId = chunk.id
+        // An empty id is an absent one: adapters emit '' for a delta that arrived
+        // without a tool-call start, and `assemble` must synthesize a distinct id
+        // instead of correlating every such call by the same empty string.
+        if (chunk.id !== '') partial.toolCallId = chunk.id
         if (chunk.name) partial.toolCallName = chunk.name
         partial.toolCallArguments += chunk.argumentsDelta
         return

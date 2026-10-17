@@ -110,6 +110,25 @@ describe('BlockAssembler', () => {
     ])
   })
 
+  it('synthesizes the fallback id when a delta carries an empty id', () => {
+    const assembler = new BlockAssembler()
+    // A delta with no known tool-call start carries `''` (llm-pi-ai); the
+    // fallback keeps parallel calls distinguishable instead of colliding on ''.
+    assembler.push({ type: 'tool-call-delta', index: 0, id: ToolCallId(''), argumentsDelta: '{"x":1}' })
+    expect(assembler.blocks()).toEqual([
+      { type: 'tool-call', id: ToolCallId('call-0'), name: '', arguments: '{"x":1}' },
+    ])
+  })
+
+  it('keeps a known tool-call id when a later delta carries an empty id', () => {
+    const assembler = new BlockAssembler()
+    assembler.push({ type: 'tool-call-delta', index: 0, id: ToolCallId('real-id'), name: 'echo', argumentsDelta: '{"a"' })
+    assembler.push({ type: 'tool-call-delta', index: 0, id: ToolCallId(''), argumentsDelta: ':1}' })
+    expect(assembler.blocks()).toEqual([
+      { type: 'tool-call', id: ToolCallId('real-id'), name: 'echo', arguments: '{"a":1}' },
+    ])
+  })
+
   it('exposes usage via the getter when a usage chunk was received', () => {
     const assembler = new BlockAssembler()
     assembler.push({ type: 'text-delta', index: 0, text: 'msg' })
