@@ -199,7 +199,8 @@ export function deepEqualJson(a: unknown, b: unknown): boolean {
   const right = b as Record<string, unknown>
   const keys = Object.keys(left)
   if (keys.length !== Object.keys(right).length) return false
-  return keys.every(key => key in right && deepEqualJson(left[key], right[key]))
+  // Own-property presence: an inherited member must not satisfy a key.
+  return keys.every(key => Object.hasOwn(right, key) && deepEqualJson(left[key], right[key]))
 }
 
 /**

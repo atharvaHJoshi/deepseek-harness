@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
-import { isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
+import { deepEqualJson, isJsonValue, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 
 function objectWithForgedIntrinsicPrototype(revoked = false): Record<string, unknown> {
   const prototype = Object.create(null) as Record<string, unknown>
@@ -274,5 +274,23 @@ describe('isJsonValue', () => {
     expect(isJsonValue({ value: undefined })).toBe(false)
     expect(isJsonValue(new Exotic())).toBe(false)
     expect(isJsonValue(cyclic)).toBe(false)
+  })
+})
+
+describe('deepEqualJson', () => {
+  it('compares records by own properties, so an inherited member never satisfies a key', () => {
+    const literalProto = JSON.parse('{"__proto__":{},"b":2}')
+    const plain = { a: 1, b: 2 }
+
+    expect(JSON.stringify(literalProto)).not.toBe(JSON.stringify(plain))
+    expect(deepEqualJson(literalProto, plain)).toBe(false)
+    expect(deepEqualJson(plain, literalProto)).toBe(false)
+  })
+
+  it('compares own __proto__ data by value and distinguishes nested differences', () => {
+    expect(deepEqualJson(JSON.parse('{"__proto__":{"x":1}}'), JSON.parse('{"__proto__":{"x":1}}'))).toBe(true)
+    expect(deepEqualJson(JSON.parse('{"__proto__":{"x":1}}'), JSON.parse('{"__proto__":{"x":2}}'))).toBe(false)
+    expect(deepEqualJson([1, { a: 2 }], [1, { a: 2 }])).toBe(true)
+    expect(deepEqualJson({ a: [1, 2] }, { a: [1, 2, 3] })).toBe(false)
   })
 })
