@@ -20,9 +20,10 @@
  * whole-unit file `<root>/<name>.json` (the pre-per-record layout) seeds
  * per-record documents, provided its stored unit version is in the accepted
  * set — a legacy file stamped with any other version is left alone and reads
- * as the empty unit. Any new document path, including one whose contents are
- * unreadable or stale, suppresses the bootstrap for the whole unit. The
- * legacy file is never changed or deleted.
+ * as the empty unit. A record key the layout cannot represent as a path
+ * segment is skipped and stays only in the legacy file. Any new document
+ * path, including one whose contents are unreadable or stale, suppresses the
+ * bootstrap for the whole unit. The legacy file is never changed or deleted.
  * @module @deepseek-ai/dsh-storage-json/src/per-record-unit
  */
 
@@ -115,7 +116,8 @@ function acceptedStamps(descriptor: KvUnitDescriptor): readonly number[] {
  * version is outside the accepted set — migrating records the owner never
  * vouched for would stamp them with the current version and turn a
  * discardable stale cache into schema failures at the domain layer. Other
- * read failures propagate.
+ * read failures propagate. A record key that cannot be a path segment is
+ * skipped, so such a record stays only in the legacy file.
  * @param descriptor - Static identity and shape of the unit.
  * @param dir - The per-record unit directory (`<root>/<name>`).
  * @param state - The empty tree state; bootstrapped records are added.
@@ -148,6 +150,11 @@ async function bootstrapLegacyUnit(descriptor: KvUnitDescriptor, dir: string, st
     const target = state.tables.get(table)
     if (target === undefined) continue
     for (const [key, value] of Object.entries(records)) {
+      // A record key the per-record layout cannot represent is skipped: writing
+      // it as a path segment could escape the unit directory, and a reader
+      // ignores any filename that fails the key pattern, so the record stays
+      // only in the legacy file.
+      if (!SAFE_KEY_RE.test(key)) continue
       const path = join(dir, table, `${key}.json`)
       await mkdir(dirname(path), { recursive: true, mode: 0o700 })
       await writeAtomic(path, serializeRecord(descriptor.version, value))

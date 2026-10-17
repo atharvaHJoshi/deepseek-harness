@@ -413,6 +413,28 @@ describe('per-record layout', () => {
     await backend2.close()
   })
 
+  it('skips legacy records whose key the layout cannot represent', async () => {
+    const root = await freshRoot()
+    // `../../outside` would escape the unit directory as a path segment, and
+    // the read side ignores any filename that fails the key pattern, so none
+    // of these records can round-trip through the per-record layout.
+    const legacy = JSON.stringify({
+      unit: { name: 'recs', version: descriptor.version },
+      global: null,
+      tables: { t: { safe: { v: 1 }, 'a b': { v: 2 }, '../../outside': { v: 3 }, 'a/b': { v: 4 } } },
+    })
+    await writeFile(join(root, 'recs.json'), legacy, 'utf8')
+    const backend = new JsonStorageBackend(root)
+    const unit = await backend.kv.open(descriptor)
+    expect(await unit.loadAll()).toEqual({ tables: { t: { safe: { v: 1 } } }, global: null })
+    // Only the representable record was published; nothing escaped the unit directory.
+    expect(await readdir(join(root, 'recs', 't'))).toEqual(['safe.json'])
+    await expect(readFile(join(root, 'outside.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(readFile(join(root, 'recs.json'), 'utf8')).resolves.toBe(legacy)
+    await unit.close()
+    await backend.close()
+  })
+
   it('backupRecord moves the document aside; reads see it absent and a write recreates it', async () => {
     const root = await freshRoot()
     const backend = new JsonStorageBackend(root)
