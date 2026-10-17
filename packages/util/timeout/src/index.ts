@@ -69,6 +69,8 @@ export interface IdleWatchdog {
   /**
    * Await one iterator demand while the idle timer is armed. The deadline
    * settles the demand even when the awaited work ignores its abort signal.
+   * A demand that follows an elapsed deadline arms a fresh one and is settled
+   * by it, because the stable signal aborts at most once.
    * @param iterator - iterator whose next value represents provider progress.
    * @returns the iterator's next result.
    * @throws The {@link TimeoutReason} of this watchdog when the idle interval
@@ -150,11 +152,15 @@ export function idleWatchdog(
   let timer: ReturnType<typeof setTimeout> | undefined
   let outstanding = false
   let disposed = false
+  let settleDeadline: (() => void) | undefined
 
   const arm = (): void => {
     if (timer !== undefined) clearTimeout(timer)
     timer = setTimeout(() => {
       timeout.abort(reason)
+      // The stable signal aborts once, so its event cannot release a later
+      // demand; the expired demand settles from the deadline itself.
+      settleDeadline?.()
     }, timeoutMs)
   }
 
@@ -164,18 +170,15 @@ export function idleWatchdog(
       if (disposed) throw new Error('idleWatchdog is disposed')
       if (outstanding) throw new Error('idleWatchdog next is already outstanding')
       outstanding = true
-      arm()
       const expired = Promise.withResolvers<never>()
-      const onAbort = (): void => { expired.reject(reason) }
-      timeout.signal.addEventListener('abort', onAbort, { once: true })
+      settleDeadline = () => { expired.reject(reason) }
+      arm()
       try {
         // Both reactions end with this demand: a deadline promise kept for the
         // watchdog's lifetime would retain every value the settled races produced.
-        return await Promise.race([
-          iterator.next().finally(() => { timeout.signal.removeEventListener('abort', onAbort) }),
-          expired.promise,
-        ])
+        return await Promise.race([iterator.next(), expired.promise])
       } finally {
+        settleDeadline = undefined
         clearTimeout(timer)
         timer = undefined
         outstanding = false
