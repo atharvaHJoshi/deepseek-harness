@@ -323,13 +323,15 @@ export class TextRetainer {
       }
     }
 
-    // Dropped = bytes that no side can keep. Compute cumulative omission the
-    // SAME way finish() does (via omittedAt), so push and finish never disagree;
-    // per-push we only need whether THIS chunk pushed the total past what the
-    // two caps hold.
-    const droppedThisChunk = this.omittedAt(this.total) > this.omittedAt(before)
+    // A byte of this chunk survives where either window covers it: the prefix
+    // keeps [0, prefixLen) and the rolling suffix keeps the last suffixLen
+    // bytes, so `kept` answers for this chunk's own bytes — the suffix can
+    // retain a new chunk while evicting older ones. Cumulative omission still
+    // comes from omittedAt, the same computation finish() uses.
+    const keptPrefixEnd = Math.min(this.total, this.prefixCap)
+    const keptSuffixStart = this.total - Math.min(this.total - keptPrefixEnd, this.suffixCap)
     return {
-      kept: !droppedThisChunk,
+      kept: keptSuffixStart <= Math.max(before, keptPrefixEnd),
       truncated: this.omittedAt(this.total) > 0,
     }
   }

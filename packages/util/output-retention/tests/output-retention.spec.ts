@@ -121,7 +121,11 @@ describe('TextRetainer — tail (exact omission, reads to end)', () => {
 
   it('drops old chunks as they slide out of the tail window', () => {
     const r = new TextRetainer({ kind: 'tail', maxBytes: 3 })
-    for (const c of ['11', '22', '33', '44']) r.push(c)
+    expect(r.push('11')).toEqual({ kept: true, truncated: false })
+    // '22' is retained whole; the byte the budget evicts is '1' from the earlier chunk.
+    expect(r.push('22')).toEqual({ kept: true, truncated: true })
+    expect(r.push('33')).toEqual({ kept: true, truncated: true })
+    expect(r.push('44')).toEqual({ kept: true, truncated: true })
     // Only the final 3 bytes survive; earlier whole chunks are dropped.
     expect(r.finish().text).toBe('344')
   })
@@ -170,6 +174,17 @@ describe('TextRetainer — headTail (prefix + suffix, omit the middle)', () => {
     expect(result.text).not.toContain('�')
     expect(result.text.startsWith('a')).toBe(true)
     expect(result.text.endsWith('b')).toBe(true)
+  })
+
+  it('reports an evicting push as kept when the pushed chunk survives whole', () => {
+    const r = new TextRetainer({ kind: 'headTail', headBytes: 3, tailBytes: 3 })
+    expect(r.push('abc')).toEqual({ kept: true, truncated: false })
+    // 'defg' fills the tail window; the evicted byte 'd' is its own leading byte,
+    // so this chunk is only partially kept.
+    expect(r.push('defg')).toEqual({ kept: false, truncated: true })
+    // 'h' is retained whole while the head|tail gap keeps growing.
+    expect(r.push('h')).toEqual({ kept: true, truncated: true })
+    expect(r.finish().text).toBe('abcfgh')
   })
 })
 
