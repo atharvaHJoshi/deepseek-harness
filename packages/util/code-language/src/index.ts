@@ -123,8 +123,9 @@ const READ_LANG_BY_EXTENSION = new Map<string, string>([
  * The short `lang` id the read card persists, keyed by canonical language id.
  * Keys are exactly the languages in {@link LANGUAGE_EXTENSIONS}: where
  * {@link READ_LANG_BY_EXTENSION} does not already fix a suffix's value, this
- * table supplies the language's short name (`powershell` to `ps1`, `hcl` to
- * `tf`, `system-verilog` to `sv`) rather than the grammar id. Keys are canonical
+ * table supplies the language's short name (`powershell` to `ps1`,
+ * `shellscript` to `sh`, `system-verilog` to `sv`) rather than the grammar id.
+ * Keys are canonical
  * ids, not untrusted extensions, so an object lookup cannot reach an
  * `Object.prototype` member the way the extension tables can.
  */
