@@ -28,7 +28,11 @@ export class MarketIndexError extends Error {
 const LANGUAGE_ID = /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/u
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/u
 const PACKAGE_NAME_MAX_LENGTH = 214
-/** The SemVer 2.0.0 grammar for one exact version. */
+/**
+ * The SemVer 2.0.0 grammar for one exact version. `marketVersion` also requires
+ * node-semver to accept the version: `versions` orders with `semver.rcompare`,
+ * whose parser bounds the total length and each numeric identifier.
+ */
 const NUMERIC = '(?:0|[1-9]\\d*)'
 const PRERELEASE_PART = `(?:${NUMERIC}|\\d*[a-zA-Z-][0-9a-zA-Z-]*)`
 const SEMVER = new RegExp(
@@ -240,7 +244,7 @@ function icon(value: unknown, path: string, indexUrl: URL): string {
 function marketVersion(value: unknown, path: string): MarketVersion {
   const object = objectAt(value, path)
   const version = stringAt(object.version, `${path}.version`)
-  if (!SEMVER.test(version)) fail(`${path}.version`, 'must be an exact SemVer version')
+  if (!SEMVER.test(version) || semver.valid(version) === null) fail(`${path}.version`, 'must be an exact SemVer version')
   const publishTimestamp = object.publishTimestamp
   if (typeof publishTimestamp !== 'number' || !Number.isInteger(publishTimestamp) || publishTimestamp < 0 || publishTimestamp >= MAX_PUBLISH_TIMESTAMP) {
     fail(`${path}.publishTimestamp`, 'must be an integer number of Unix seconds in [0, 10^11)')

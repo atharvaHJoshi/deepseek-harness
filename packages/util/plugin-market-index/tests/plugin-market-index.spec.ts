@@ -193,6 +193,11 @@ describe('parseMarketIndex', () => {
     expect(entryRejection({ versions: ['1.2.3'] })).toBe('$.plugins[0].versions[0] must be an object')
     expect(versionRejection({ version: 'v1.2.3' })).toBe('$.plugins[0].versions[0].version must be an exact SemVer version')
     expect(versionRejection({ version: '^1.2.3' })).toBe('$.plugins[0].versions[0].version must be an exact SemVer version')
+    // node-semver bounds the total length and each numeric identifier; a version
+    // it rejects must not reach the semver.rcompare ordering below.
+    expect(versionRejection({ version: `1.2.3+${'a'.repeat(251)}` })).toBe('$.plugins[0].versions[0].version must be an exact SemVer version')
+    expect(entryRejection({ versions: [npmVersion(), npmVersion({ version: '99999999999999999999.0.0' })] }))
+      .toBe('$.plugins[0].versions[1].version must be an exact SemVer version')
     for (const publishTimestamp of ['1', 1.5, -1, 1e11]) {
       expect(versionRejection({ publishTimestamp })).toBe('$.plugins[0].versions[0].publishTimestamp must be an integer number of Unix seconds in [0, 10^11)')
     }
