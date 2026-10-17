@@ -29,6 +29,26 @@ describe('adapter failure normalization', () => {
     expect(normalizeLlmFailure(primitiveFailure)).toEqual({ message: 'provider failed', code: 'UNKNOWN' })
   })
 
+  it('preserves a non-Error throw\'s own data-backed message without adopting its code', () => {
+    expect(normalizeLlmFailure({ message: 'rate limited', code: 'RATE_LIMIT' }))
+      .toEqual({ message: 'rate limited', code: 'UNKNOWN' })
+    expect(normalizeLlmFailure(Object.assign(Object.create(null) as Record<string, unknown>, { message: 'quota exhausted' })))
+      .toEqual({ message: 'quota exhausted', code: 'UNKNOWN' })
+    expect(normalizeLlmFailure({ message: '' })).toEqual({ message: '[object Object]', code: 'UNKNOWN' })
+  })
+
+  it('ignores an accessor-backed message on a non-Error throw', () => {
+    const accessor = Object.defineProperty({}, 'message', { get: () => 'from getter' })
+    expect(normalizeLlmFailure(accessor)).toEqual({ message: '[object Object]', code: 'UNKNOWN' })
+  })
+
+  it('contains hostile non-Error property reflection', () => {
+    const hostile = new Proxy({}, {
+      getOwnPropertyDescriptor() { throw new Error('message descriptor failed') },
+    })
+    expect(normalizeLlmFailure(hostile)).toEqual({ message: '[object Object]', code: 'UNKNOWN' })
+  })
+
   it('contains hostile Error property reflection', () => {
     const withFailure = new Error('provider failed') as Error & { failure: unknown; code: string }
     withFailure.failure = { message: 'provider failed', code: 'FOREIGN' }

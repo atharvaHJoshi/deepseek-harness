@@ -27,13 +27,34 @@ export function normalizeLlmFailure(value: unknown): LlmFailure {
   })
 }
 
-/** Render a non-Error throw without letting hostile coercion escape normalization. */
+/**
+ * Render a non-Error throw's own data-backed message, or its rendering, without
+ * letting hostile accessors or coercion escape normalization.
+ * @param value - arbitrary non-Error value thrown by an adapter.
+ * @returns a non-empty message, or a fixed fallback when none can be read.
+ */
 function thrownMessage(value: unknown): string {
   try {
+    const own = ownDataMessage(value)
+    if (own !== undefined) return own
     const message = String(value)
     return message.length > 0 ? message : 'LLM adapter failed'
   } catch (_hostileThrownValue) {
     return 'LLM adapter failed'
+  }
+}
+
+/** Read a non-Error throw's own data-backed `message` without invoking accessors. */
+function ownDataMessage(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, 'message')
+    return descriptor !== undefined && 'value' in descriptor
+      && typeof descriptor.value === 'string' && descriptor.value.length > 0
+      ? descriptor.value
+      : undefined
+  } catch (_sdkPropertyTrap) {
+    return undefined
   }
 }
 
