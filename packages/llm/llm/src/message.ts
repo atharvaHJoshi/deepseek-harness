@@ -124,12 +124,14 @@ export const CONTEXT_SUMMARY_MAX_CHARS = 120
 /**
  * Bound one `notice` summary to {@link CONTEXT_SUMMARY_MAX_CHARS}.
  * @param summary - the producer's one-line account, of any length.
- * @returns the account, ellipsized when it exceeds the bound.
+ * @returns the account, ellipsized when it exceeds the bound; a cut inside a
+ *   surrogate pair drops the unpaired half rather than leaving an unpaired
+ *   high surrogate in the durable log.
  */
 export function boundContextSummary(summary: string): string {
-  return summary.length <= CONTEXT_SUMMARY_MAX_CHARS
-    ? summary
-    : `${summary.slice(0, CONTEXT_SUMMARY_MAX_CHARS - 1)}…`
+  if (summary.length <= CONTEXT_SUMMARY_MAX_CHARS) return summary
+  const capped = summary.slice(0, CONTEXT_SUMMARY_MAX_CHARS - 1)
+  return `${/[\uD800-\uDBFF]$/.test(capped) ? capped.slice(0, -1) : capped}…`
 }
 
 /** Any known message source, derived from {@link MessageSourceMap}; switch on `kind` and fall through unknowns (merge-extensible). */

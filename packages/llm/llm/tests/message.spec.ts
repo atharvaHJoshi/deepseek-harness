@@ -29,6 +29,13 @@ describe('message construction', () => {
     expect(boundContextSummary(exact + 'x')).toBe(exact.slice(0, -1) + '…')
   })
 
+  it('bounds producer summaries without leaving an unpaired surrogate before the ellipsis', () => {
+    // '😀' is two UTF-16 units, so this cap would otherwise keep its high surrogate alone.
+    expect(boundContextSummary('😀'.repeat(61))).toBe(`${'😀'.repeat(59)}…`)
+    expect(boundContextSummary(`${'a'.repeat(CONTEXT_SUMMARY_MAX_CHARS - 1)}😀`))
+      .toBe(`${'a'.repeat(CONTEXT_SUMMARY_MAX_CHARS - 1)}…`)
+  })
+
   it('preserves system-prompt attribution on immutable system messages', () => {
     const expectedSource: { kind: 'system-prompt' } = { kind: 'system-prompt' }
     const message = createSystemMessage('rule')
