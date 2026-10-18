@@ -28,20 +28,19 @@ export function normalizeLlmFailure(value: unknown): LlmFailure {
 }
 
 /**
- * Render a non-Error throw's own data-backed message, or its rendering, without
- * letting hostile accessors or coercion escape normalization.
+ * Render a non-Error throw without invoking hostile accessors or object
+ * coercion. An object or callable contributes only its own data-backed
+ * `message`; a primitive contributes its string rendering.
  * @param value - arbitrary non-Error value thrown by an adapter.
  * @returns a non-empty message, or a fixed fallback when none can be read.
  */
 function thrownMessage(value: unknown): string {
-  try {
-    const own = ownDataMessage(value)
-    if (own !== undefined) return own
-    const message = String(value)
-    return message.length > 0 ? message : 'LLM adapter failed'
-  } catch (_hostileThrownValue) {
-    return 'LLM adapter failed'
+  if (value !== null && (typeof value === 'object' || typeof value === 'function')) {
+    return ownDataMessage(value) ?? 'LLM adapter failed'
   }
+  // Only a primitive reaches this rendering, so no user code runs during it.
+  const message = String(value)
+  return message.length > 0 ? message : 'LLM adapter failed'
 }
 
 /** Read a non-Error throw's own data-backed `message` without invoking accessors. */

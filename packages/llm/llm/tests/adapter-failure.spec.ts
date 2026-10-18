@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { normalizeLlmFailure } from '../src/adapter-failure.ts'
 
 describe('adapter failure normalization', () => {
-  it('contains hostile non-Error coercion', () => {
-    const thrown = { [Symbol.toPrimitive]: () => { throw new Error('coercion failed') } }
-    expect(normalizeLlmFailure(thrown)).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
+  it('never coerces a thrown object or callable', () => {
+    const coerce = vi.fn(() => { throw new Error('coercion failed') })
+    expect(normalizeLlmFailure({ [Symbol.toPrimitive]: coerce }))
+      .toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
+    expect(normalizeLlmFailure(function adapterThrew(): void {}))
+      .toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
+    expect(coerce).not.toHaveBeenCalled()
   })
 
   it('normalizes empty primitive throws and data descriptors without values', () => {
@@ -34,19 +38,25 @@ describe('adapter failure normalization', () => {
       .toEqual({ message: 'rate limited', code: 'UNKNOWN' })
     expect(normalizeLlmFailure(Object.assign(Object.create(null) as Record<string, unknown>, { message: 'quota exhausted' })))
       .toEqual({ message: 'quota exhausted', code: 'UNKNOWN' })
-    expect(normalizeLlmFailure({ message: '' })).toEqual({ message: '[object Object]', code: 'UNKNOWN' })
+    // Without an own non-empty string message, the fixed fallback stands in for
+    // a message-derived read that would render "undefined".
+    expect(normalizeLlmFailure({ message: '' })).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
+    expect(normalizeLlmFailure({ message: undefined })).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
+    expect(normalizeLlmFailure({ code: 'RATE_LIMIT' })).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
   })
 
   it('ignores an accessor-backed message on a non-Error throw', () => {
-    const accessor = Object.defineProperty({}, 'message', { get: () => 'from getter' })
-    expect(normalizeLlmFailure(accessor)).toEqual({ message: '[object Object]', code: 'UNKNOWN' })
+    const read = vi.fn(() => 'from getter')
+    const accessor = Object.defineProperty({}, 'message', { get: read })
+    expect(normalizeLlmFailure(accessor)).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
+    expect(read).not.toHaveBeenCalled()
   })
 
   it('contains hostile non-Error property reflection', () => {
     const hostile = new Proxy({}, {
       getOwnPropertyDescriptor() { throw new Error('message descriptor failed') },
     })
-    expect(normalizeLlmFailure(hostile)).toEqual({ message: '[object Object]', code: 'UNKNOWN' })
+    expect(normalizeLlmFailure(hostile)).toEqual({ message: 'LLM adapter failed', code: 'UNKNOWN' })
   })
 
   it('contains hostile Error property reflection', () => {
